@@ -1,19 +1,48 @@
 <?php
 /**
- * index.php is a model for largely static PHP pages 
+
+
+ * index.php along with survey_view.php provides a sample web application
  *
- * @package nmCommon
- * @author Bill Newman <williamnewman@gmail.com>
- * @version 2.091 2011/06/17
- * @link http://www.newmanix.com/
- * @license http://opensource.org/licenses/osl-3.0.php Open Software License ("OSL") v. 3.0
- * @see config_inc.php 
+ * The difference between demo_list.php and index.php is the reference to the 
+ * Pager class which processes a mysqli SQL statement and spans records across multiple  
+ * pages. 
+ *
+ * The associated view page, survey_view.php is virtually identical to demo_view.php. 
+ * The only difference is the pager version links to the list pager version to create a 
+ * separate application from the original list/view. 
+ * 
+ 
+ * @package SurveySez
+ * @author Jeanine Mars <jeaninemars1@gmail.com>
+ * @version 0.1 2/17/2017
+ * @link http://www.jeaninemars.com
+ * @http://www.apache.org/licenses/LICENSE-2.0
+ * @see survey_view.php
+ * @see Pager.php 
  * @todo none
  */
+
+# '../' works for a sub-folder.  use './' for the root  
+require '../inc_0700/config_inc.php'; #provides configuration, pathing, error handling, db credentials 
  
-require 'inc_0700/config_inc.php'; #provides configuration, pathing, error handling, db credentials
-$config->titleTag = THIS_PAGE; #Fills <title> tag. If left empty will fallback to $config->titleTag in config_inc.php  
-$config->nav1 = array("aboutus.php"=>"About Us") + $config->nav1; 
+# SQL statement
+//$sql = "select * from sm17_surveys";
+
+$sql = 
+"
+select CONCAT(a.FirstName, ' ', a.LastName) AdminName, s.SurveyID, s.Title, s.Description, 
+date_format(s.DateAdded, '%W %D %M %Y %H:%i') 'DateAdded' from "
+. PREFIX . "surveys s, " . PREFIX . "Admin a where s.AdminID=a.AdminID order by s.DateAdded desc
+";
+
+#Fills <title> tag. If left empty will default to $PageTitle in config_inc.php  
+$config->titleTag = 'Muffins made with love & PHP in Seattle';
+
+#Fills <meta> tags.  Currently we're adding to the existing meta tags in config_inc.php
+$config->metaDescription = 'Seattle Central\'s ITC280 Class Muffins are made with pure PHP! ' . $config->metaDescription;
+$config->metaKeywords = 'Muffins,PHP,Fun,Bran,Regular,Regular Expressions,'. $config->metaKeywords;
+
 /*
 $config->metaDescription = 'Web Database ITC281 class website.'; #Fills <meta> tags.
 $config->metaKeywords = 'SCCC,Seattle Central,ITC281,database,mysql,php';
@@ -31,24 +60,70 @@ $config->nav1 = array("page.php"=>"New Page!") + $config->nav1; #add a new page 
 
 get_header(); #defaults to theme header or header_inc.php
 ?>
-<div class="jumbotron" style="margin-top:.5em;">
-	<h1><?=$config->banner;?></h1>
-	<p><em><?=$config->slogan;?></em></p>
-	<a href="http://www.bootswatch.com/" target="_blank" class="btn btn-primary btn-lg">Learn more</a>
-</div>
-<p>Here are a few more links to demo files that can be used as starting points when building web applications:</p>
-<p><a href="<?=VIRTUAL_PATH;?>demo/demo_shared.php" target="_blank">demo_shared</a>: A  singleton class based mysqli database (shared) connection application using the Customers table. Best starting point for a non-specific database enabled application </p>
-<p><a href="<?=VIRTUAL_PATH;?>demo/demo_postback_nohtml.php">postback_no_html</a>: A vanilla postback switch based application with no specific code other than submittal via POST. Use for building complex postback applications. Compare to <strong>demo_edit</strong> to see what this file can be used to create. </p>
-<p><a href="<?=VIRTUAL_PATH;?>demo/demo_list_pager.php" target="_blank">demo_list_pager</a>: A &quot;muffin&quot; example that incorporates the Pager class into a  list/view application. Best starting point for a List/View app </p>
-<p><a href="<?=VIRTUAL_PATH;?>demo/demo_add.php" target="_blank">demo_add</a>: A postback switch based application for adding new records to the Customers table.</p>
-<p><a href="<?=VIRTUAL_PATH;?>demo/demo_edit.php" target="_blank">demo_edit</a>: A postback switch based application for editing existing records in the Customers table</p>
-<p>&nbsp; </p>
+<h3 align="center"><?=smartTitle();?></h3>
+
+<p>This page, along with <b>survey_view.php</b>, demonstrate a List/View web application.</p>
+<p>It was built on the mysql shared web application page, <b>demo_shared.php</b></p>
+<p>This page is the entry point of the application, meaning this page gets a link on your web site.  Since the current subject is muffins, we could name the link something clever like <a href="<?php echo VIRTUAL_PATH; ?>index.php">Muffins</a></p>
+<p>Use <b>index.php</b> and <b>survey_view.php</b> as a starting point for building your own List/View web application!</p> 
 <?php
-//benchmarkNote("Test from index file!");
-$config->benchNote = "Test From Index File!";
+#reference images for pager
+$prev = '<img src="' . VIRTUAL_PATH . 'images/arrow_prev.gif" border="0" />';
+$next = '<img src="' . VIRTUAL_PATH . 'images/arrow_next.gif" border="0" />';
 
-//echo $config->benchNote;die;
+# Create instance of new 'pager' class
+$myPager = new Pager(2,'',$prev,$next,'');
+$sql = $myPager->loadSQL($sql);  #load SQL, add offset
 
-//dumpDie($config);
-get_footer(); #defaults to theme header or footer_inc.php
+# connection comes first in mysqli (improved) function
+$result = mysqli_query(IDB::conn(),$sql) or die(trigger_error(mysqli_error(IDB::conn()), E_USER_ERROR));
+
+if(mysqli_num_rows($result) > 0)
+{#records exist - process
+	if($myPager->showTotal()==1){$itemz = "survey";}else{$itemz = "surveys";}  //deal with plural
+    echo '<div align="center">We have ' . $myPager->showTotal() . ' ' . $itemz . '!</div>';
+    
+    echo '<table class="table table-striped table-hover ">
+  <thead>
+    <tr>
+      <th>Admin Name</th>
+      <th>Title</th>
+      <th>Date</th>
+  </thead>
+  <tbody>';
+    
+	while($row = mysqli_fetch_assoc($result))
+        
+        
+	{# process each row
+        
+        echo '
+         <tr>
+            <td>' . dbOut($row['AdminName']) . '</td>
+            <td><a href="' . VIRTUAL_PATH . 'surveys/survey_view.php?id=' . (int)$row['SurveyID'] . '">' . dbOut($row['Title']) . '</a></td>
+            <td>' . dbOut($row['DateAdded']) . '</td>
+        </tr>
+        
+        ';
+        
+       /*
+        echo '<div align="center"><a href="' . VIRTUAL_PATH . 'surveys/survey_view.php?id=' . (int)$row['SurveyID'] . '">' . dbOut($row['Title']) . '</a>';
+         
+         echo '</div>';
+         */
+	}
+    
+    echo '
+    
+</table>';
+    
+    
+    
+	echo $myPager->showNAV(); # show paging nav, only if enough records	 
+}else{#no records
+    echo "<div align=center>There are currently no surveys.</div>";	
+}
+@mysqli_free_result($result);
+
+get_footer(); #defaults to theme footer or footer_inc.php
 ?>
